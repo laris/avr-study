@@ -1,0 +1,301 @@
+<html>
+<head>
+<title>Delay loops in AVR assembler</title>
+<meta name="GENERATOR" content="Editor Windows">
+<meta name="AUTHOR" content="Gerhard Schmidt">
+<meta name="CREATED" content="20080524;16361234">
+<meta name="CHANGEDBY" content="Gerhard Schmidt">
+<meta name="CHANGED" content="20200912;15581234">
+<meta name="KEYWORDS" content="AVR,Assembler,Tutorial,Timing,Loops,Delay,LED,Blinking,Programming">
+<meta name="DESCRIPTION" content="Programming for starters, introduction to AVR assembler, time delay loops, LED blinking">
+</head>
+<body bgcolor="#f0fff0">
+<font size=2><a name="top">Path:</a>
+<a href="../../index.html" target="_top">Home</a> =&gt;
+<a href="../index.html">AVR overview</a> =&gt;
+<a href="index.html">Time loops</a> =&gt; with a 24 bit subi loop
+<img src="../../common/avr_150.jpeg" width="150" height="150" align="RIGHT" alt="Logo"></font>
+<BR>
+
+<img src="avr-asm-tutorial-delay_delayIconSmall.gif" alt="Timing loop" align="left" height="175" width="83">
+
+<h1>Time loops with 24 bit and more registers in AVR assembler based on SUBI</h1>
+The following describes a different timing loop with 24 bits. This demonstrates that the same
+task can be solved with very different means in assembler. This solution here is shorter, easier
+to understand and simpler to calculate as the previous one. The code is then expanded to 64 bits.
+<br><br>
+The source code of the delay loop is like this:
+<pre>
+<code>
+.equ c = 12345 ; A constant for counting down
+;
+.def rC1 = R16 ; Three registers to count down
+.def rC2 = R17 ; The second one
+.def rC3 = R18 ; The third one
+;
+Main: ; The main code starts here
+  sbi DDRB,PORTB0 ; Make PB0 an output
+RestartCount: ; The counter loop starts here
+  ldi rC1,Byte1(c-1) ; Load LSB of the counter value
+  ldi rC2,Byte2(c-1) ; Load middle of the counter value
+  ldi rC3,Byte3(c-1) ; Load MSB of the counter value
+CountDown:
+  subi rC1,1 ; Sets the carry flag if previously zero
+  brcc CountDown ; If not yet carry continue couting
+  subi rC2,1 ; Downcount the middle byte
+  brcc CountDown ; If not yet carry count on
+  subi rC3,1 ; Downcount the MSB byte
+  brcc CountDown ; If not yet carry count on
+  sbi PINB,PINB0 ; Toggle PB0 state
+  rjmp RestartCount ; Start new count cycle
+</code>
+</pre>
+The SUBI instruction sets the carry flag when the subtraction
+underflows from zero to 0xFF. This is the relevant signal to
+subtract a one from the next upper byte. The down-count cycle
+ends when all three bytes are 0xFF, so there is one additional
+cycle absolved, as compared with a zero recognition. This extra
+cycle is subtracted from <b>c</b> when the loop is starting.
+<br><br>
+Note that toggling a pin's output portbit by setting its PIN
+bit high is not implemented in older AVR devices, but ATtiny13
+and many others have that implemented.
+
+<h2>Calculating the loop's delay</h2>
+Another method to calculate loop delays is to list the instructions
+and to evaluate how often these are executed within the complete
+loop. The table demonstrates that.
+<br><br>
+<img src="avr-asm-tutorial-delay_24bit_loop_subi_calc.gif" width="941" height="541" align="RIGHT" alt="Caclulating clock cycles">
+The list's source line column lists all instructions that the loop
+consists of. The next column describes how often the instruction is
+executed within the loops, depending from the constant <b>c</b>.
+For all conditional branches in the loop two numbers have to be
+considered: the number of cases where jumps occur (those need two
+clock cycles each) and where no jumps occur (consuming only one
+clock cycle). The single clock cycle instructions are written to
+the next column, the two-cycle instructions are listed in the
+following column, already multiplied by two. The third column adds
+the two previous columns and sorts the formula's constituents by
+their type.
+<br><br>
+Note that the division by 256 and by 65,536 are in integer math:
+only the full number as integer is used, the fractions are deleted
+and neither considered nor used to round up.
+<br><br>
+The complete formula for the clock cycles can easily be derived
+then by summing up the different constituents.
+<br clear="ALL">
+
+<h2>Calculating c for a certain number of clock cycles</h2>
+The formula to calculate <b>c</b> for a number of clock cycles CC
+is rather simple:<br>
+<center>c = (CC - 7) / (3 + 2 / 256 + 2 / 65536) = (CC - 7) / 3.00784301757812</center>
+or roughly divided by 3.
+<br><br>
+If you want to calculate this exactly in an assembler source file,
+you'll have to ensure that the small fraction at the end is correct.
+So multiply both, the divident and the divisor, with a large enough
+number - e.g. 0x100000000 - first, before dividing 2 by 256 and 2 by
+65536. The exact formulation then is:
+<pre>
+<code>
+.equ cM=0x100000000
+.equ cCalc =(cM*(cc-7))/(3*cM+2*cM/256+2*cM/65536)
+</code>
+</pre>
+That ensures that the derived number for <b>c</b> is absolutely correct.
+
+<h2>64 bit loop</h2>
+For extremely long times, such as hours, days and years more than only
+24 bits are necessary. The same algorithm works here, but with 64 bits
+delays of up to 730,000 years can be handled.
+<br><br>
+The counting loop with 64 bits looks like that:
+<pre>
+<code>
+Restart:
+  ldi rCnt0,Byte1(cCnt) ; +1 = 1
+  ldi rCnt1,Byte2(cCnt) ; +1 = 2
+  ldi rCnt2,Byte3(cCnt) ; +1 = 3
+  ldi rCnt3,Byte4(cCnt) ; +1 = 4
+  ldi rCnt4,Byte1(cCnt/65536/65536) ; +1 = 5
+  ldi rCnt5,Byte2(cCnt/65536/65536) ; +1 = 6
+  ldi rCnt6,Byte3(cCnt/65536/65536) ; +1 = 7
+  ldi rCnt7,Byte4(cCnt/65536/65536) ; +1 = 8
+Count:
+  subi rCnt0,1 ; Downcount rCnt0
+  brcc Count ; First inner loop
+  subi rCnt1,1 ; Downcount rCnt1
+  brcc Count ; First outer loop
+  subi rCnt2,1 ; Downcount rCnt2
+  brcc Count ; Second outer loop
+  subi rCnt3,1 ; Downcount rCnt3
+  brcc Count ; Third outer loop
+  subi rCnt4,1 ; Downcount rCnt4
+  brcc Count ; Fourth outer loop
+  subi rCnt5,1 ; Downcount rCnt5
+  brcc Count ; Fifth outer loop
+  subi rCnt6,1 ; Downcount rCnt6
+  brcc Count ; Sixth outer loop
+  subi rCnt7,1 ; Downcount rCnt7
+  brcc Count ; Seventh outer loop
+  sbi pIn,bIn ; Ignite, +2 = 10
+  rjmp Restart ; Restart, +2 = 12
+</code>
+</pre>
+The calculation is also relative simple. The inner loop in the
+loop section is executed cCnt times plus one. Each execution
+consumes three clock cyles (one for SUBI, two for the BRCC).
+The last execution needs only two clock cycles because the
+jump back is not executed. The BRCC of the inner loop is
+therefore executed
+<ul>
+  <li>&quot;cCnt - cCnt / 256 + 1&quot; with two clock cycles,
+    plus</li>
+  <li>&quot;cCnt / 256 + 1&quot; with one clock cycle</li>
+  </ul>
+The two &quot;+1&quot; are caused by the fact that all loops
+are executed at least once and that the counter count down to
+0xFFFF.FFFF.FFFF.FFFF and not to zero.
+<br><br>
+The next loop is executed &quot;(c / 256) + 1&quot; times, the
+following loops each 256 times less. This yields the following
+row:
+<br><br>
+<table border=2>
+<tr><th>Loop</th><th>Executions</th><th>Abbreviation</th></tr>
+<tr><td>1</td><td>cCnt + 1</td><td>c + 1</td></tr>
+<tr><td>2</td><td>cCnt / 256 + 1</td><td>c8</td></tr>
+<tr><td>3</td><td>cCnt / 65,536 + 1</td><td>c16</td></tr>
+<tr><td>4</td><td>cCnt / 16,777,216 + 1</td><td>c24</td></tr>
+<tr><td>5</td><td>cCnt / 4,294,967,296 + 1</td><td>c32</td></tr>
+<tr><td>6</td><td>cCnt / 1,099,511,627,776 + 1</td><td>c40</td></tr>
+<tr><td>7</td><td>cCnt / 281,474,976,710,656 + 1</td><td>c48</td></tr>
+<tr><td>8</td><td>cCnt / 72,057,594,037,927,936 + 1</td><td>c56</td></tr>
+<tr><td>Last</td><td>cCnt / 18,446,744,072,719,551,616 + 1</td><td>c64</td></tr>
+</table>
+<br><br>
+Please note that the divisions are in integer mode with decimal fraction
+ignored (rounded down).
+<br><br>
+This yields the following rows of clock cycles.
+<br><br>
+<table border=2>
+<tr><th rowspan=2>Code line</th><th colspan=2>Number of executions with</th><th rowspan=2>Total clocks</th></tr>
+<tr><th>one clock cycle</th><th>two clock cycles</th></tr>
+<tr><td>; Loading</td><td>-</td><td>-</td><td>8</td></tr>			
+<tr><td>subi rCnt0,1</td><td>c+1</td><td>-</td><td>c + 1</td></tr>
+<tr><td>brcc Count</td><td>c8</td><td>c-c8</td><td>c8 + 2*c - 2*c8</td></tr>
+<tr><td>subi rCnt1,1</td><td>c8</td><td>-</td><td>c8</td></tr>
+<tr><td>brcc Count</td><td>c16</td><td>c8-c16</td><td>c16 + 2*c8 - 2*c16</td></tr>
+<tr><td>subi rCnt2,1</td><td>c16</td><td>-</td><td>c16</td></tr>
+<tr><td>brcc Count</td><td>c24</td><td>c16-c24</td><td>c24 + 2*c16 - 2*c24</td></tr>
+<tr><td>subi rCnt3,1</td><td>c24</td><td>-</td><td>c24</td></tr>
+<tr><td>brcc Count</td><td>c32</td><td>c24-c32</td><td>c32 + 2*c24 - 2*c32</td></tr>
+<tr><td>subi rCnt4,1</td><td>c32</td><td>-</td><td>c32</td></tr>
+<tr><td>brcc Count</td><td>c40</td><td>c32-c40</td><td>c40+ 2*c32 - 2*c40</td></tr>
+<tr><td>subi rCnt5,1</td><td>c40</td><td>-</td><td>c40</td></tr>
+<tr><td>brcc Count</td><td>c48</td><td>c40-c48</td><td>c48 + 2*c40 - 2*c48</td></tr>
+<tr><td>subi rCnt6,1</td><td>c48</td><td>-</td><td>c48</td></tr>
+<tr><td>brcc Count</td><td>c56</td><td>c48-c56</td><td>c56 + 2*c48 - 2*c56</td></tr>
+<tr><td>subi rCnt7,1</td><td>c56</td><td>-</td><td>c56</td></tr>
+<tr><td>brcc Count</td><td>c64</td><td>c56-c64</td><td>c64 + 2*c56 - 2*c64</td></tr>
+<tr><td>sbi pIn,bIn</td><td>-</td><td>1</td><td>2</td></tr>
+<tr><td>rjmp Restart</td><td>-</td><td>1</td><td>2</td></tr>
+</table>
+<br><br>
+If all instruction cycles are added together, the following formula
+describes the total clock cycles:
+<br>
+<center>CC = 3*c + 2*c8 + 2*c16 + 2*c24 + 2*c32 + 2*c40 + 2*c48 + 2*c56 - c64 + 13</center>
+The c is approximately CC / 3 (with an error smaller than 1%), but
+it can be calculated exactly with this formula.
+<br><br>
+Because the conversion of e.g. years in clock cycles is not that
+simple, I added the following lines to the code:
+<pre>
+<code>
+; **********************************
+;   A D J U S T A B L E   C O N S T
+; **********************************
+;
+; Compose the duration of counting
+.equ cCntYears = 0
+.equ cCntMonthes = 0
+.equ cCntDays = 0
+.equ cCntHours = 0
+.equ cCntMinutes = 0
+.equ cCntSeconds = 0
+.equ cCntMilliseconds = 100
+.equ cCntMicroseconds = 0
+;
+; The clock frequency
+.equ Clock = 1200000 ; of the ATtiny13
+;
+; **********************************
+;  F I X  &  D E R I V.  C O N S T
+; **********************************
+;
+.equ cCntSec = cCntSeconds+60*cCntMinutes+3600*cCntHours+86400*cCntDays+2629800*cCntMonthes+31557600*cCntYears
+.equ cCntUSec = 1000*cCntMilliseconds+cCntMicroSeconds
+.equ cCnt = (cCntSec * Clock + Clock * cCntUSec / 1000000 - 70) / 3
+</code>
+</pre> 
+Editing times is comfortable with this, the assembler does all the
+conversion work. If you want to have the first pulse one hour after
+the operation voltage has been applied, just set cCntHours to one.
+<br><br>
+The code of the 64-bit-looping is <a href="Time64.asm">here</a>.
+<br><br>
+You see that optimization in assembler provides many opportunities.
+Here we just replaced a DEC with a SUBI instruction and a BRNE by
+a BRCC instruction, and we got a short and simple piece of code.
+And: easy to understand and to calculate.
+<br><br>
+But: please note that the calculation of very long time periods
+can exceed the limits of assemblers that only work with 32 bit
+long integers. Assembling then ends with an overflow message.
+gavrasm and avr_sim work with INT64 and you can handle 1000s
+of years long time loops without any problems.
+
+<h2>Modified 64-bit delay</h2>
+The rather complicated calculation of the delay time can be
+simplified by adding an NOP at the end of each counting loop,
+to bring all 256 counter loop executions to the same clock
+cycle lengthes. Such a counter loop now looks like this:
+<pre>
+<code>
+  ldi rCnt,LoopRepetitions
+Counterloop:
+  subi rCnt,1
+  brcc Counterloop
+  nop
+</code>
+</pre>
+Each loop execution now needs exactly 3 clock cycles. If you
+combine eight of such loops, each addional loop executions needs
+three clock cycles. The number of clock cycles is then:<br>
+<center>CC = 3 * cCnt / 256<sup>0</sup> + 3 * cCnt / 256<sup>1</sup> + 3 * cCnt / 256<sup>2</sup> + 3 * cCnt / 256<sup>3</sup> + ... + 3 * cCnt / 256<sup>7</sup> + 36</center>
+Each <b>cCnt/256<sup>N</sup></b> stands for another execution of
+the byte loop N. The constant <b>36</b> stands for the loading
+time, the execution of all the loops in the last cycle and for
+switching and for the jumping back.
+<br><br>
+This can be coded in assembler much simpler than in the upper case.
+The sourec code <a href="Time64nop.asm">here</a> does this and
+demonstrates such a counting loop. Additionally this source code
+allows the calculation of very long times (&gt; 10 years) to be
+compatible with a 64-bit integer handling. But: calculation of
+256<sup>7</sup> still fails, so that the algorithm produces a small
+error margin in times longer than 1,000 years, which introduces
+additional problems with battery sustainability either way.
+
+<br><br>
+<a href="#top">To the top of that page</a>
+<br><br>
+<small>
+&copy;2009-2020 by <a href="http://www.avr-asm-tutorial.net/">http://www.avr-asm-tutorial.net</a>
+</small>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<html>
+<head>
+<title>Time loops in AVR assembler</title>
+<meta name="GENERATOR" content="Editor Windows">
+<meta name="AUTHOR" content="Gerhard Schmidt">
+<meta name="CREATED" content="20080524;16361234">
+<meta name="CHANGEDBY" content="Gerhard Schmidt">
+<meta name="CHANGED" content="20190723;11101234">
+<meta name="KEYWORDS" content="AVR,Assembler,Tutorial,Timing,Loop,Delay,Tone generation,Programming">
+<meta name="DESCRIPTION" content="Programming for starters, introduction to AVR assembler, time delays of precise durationb with loops, tone generation with a speaker">
+</head>
+<body bgcolor="#f0fff0">
+<font size=2><a name="top">Path:</a>
+<a href="../../index.html" target="_top">Home</a> =&gt;
+<a href="../index.html">AVR overview</a> =&gt;
+<a href="index.html">Time loops</a> =&gt; using an 8 bit register
+&nbsp;&nbsp;&nbsp;<a href="../../avr_de/zeitschleifen/delay8.html">(Diese Seite in Deutsch:
+<img src="../../common/flag_de.gif" width="25" height="15" alt="Flag DE"></a>)
+<img src="../../common/avr_150.jpeg" width="150" height="150" align="RIGHT" alt="Logo"></font>
+<BR>
+
+<img src="avr-asm-tutorial-delay_delayIconSmall.gif" alt="Timing loop" align="left" height="175" width="83">
+
+<h1>Timing loop with an 8 bit register in AVR assembler</h1>
+Here the most simple time delay loop in one 8 bit register. Even though this only provides
+very short delays, it is useful to understand it because it provides the basic knowledge
+to step to other, more useful but also more complicated solutions. Calculating times,
+executed instructions etc. have to be learned here.
+<br clear="ALL">
+
+<h2>Coding an 8 bit loop in assembler</h2>
+In assembler, such an 8 bit delay loop looks like that:
+<pre>
+<code>
+.equ c1 = 200 ; Define number of loop executions as a constant
+	ldi R16,c1 ; Instruction: load a register with this constant
+Loop: ; Loop starts
+	dec R16 ; Instruction: Decrease register value by one, if zero set Z flag in SREG
+	brne Loop ; Instruction: if not zero jump to label Loop:, otherwise continue, uses Z in SREG
+</pre>
+</code>
+Practically the constant c1 determines the number of loop executions. As an 8 bit
+register can only hold 256 different numbers, the resolution is rather limited.
+
+<h2>Controller clocks</h2>
+The time that the controller needs to go through this delay loop is depending from
+two basic things:
+<ul>
+  <li>the number of clock cycles that each executed instruction requires (obviously
+    more than the three that the loop consists of, because of the repetitions),</li>
+  <li>the time that each clock cycle requires.</li>
+  </ul>
+The number of clock cycles that are needed for each instruction are listed in the
+data books of the AVRs, close to the book's end in a chapter called &quot;Instruction
+Set Summary&quot;, in the column &quot;"#Clocks&quot;. According to this our delay
+loop instructions need the following number of clock cycles:
+<pre>
+<code>
+.equ c1 = 200 ; No instruction, no clock cycles, solely for the assembler
+	ldi R16,c1 ; 1 clock cycle
+Loop: ; Loop start
+	dec R16 ; 1 clock cycle
+	brne Loop ; 2 clock cycles when zero flag is clear, 1 clock cycle when zero flag is set
+</pre>
+</code>
+The number of clock cycles therefore is:
+<ol>
+  <li>Loading: 1 cycle, executed only once, plus</li>
+  <li>Loop: 1 + 2 = 3 cycles when jumping back, plus</li>
+  <li>Loop end: 1 + 1 = 2 cycles when not jumping back at the last loop execution.</li>
+  </ol>
+The number of clock cycles for the loop therefore is<br>
+<center>n<sub>cycles</sub> = 1 + 3 * (c1 - 1) + 2</center><br>
+When multiplying the bracket by 3 the following results:<br>
+<center>n<sub>cycles</sub> = 1 + 3 * c1 - 3 + 2</center><br>
+or even simpler:<br>
+<center>n<sub>cycles</sub> = 3 * c1</center><br>
+For our above formulation with c1 = 200 the number of clock cycles is 3 * 200 = 600.
+<br><br>
+A special situation occurs, if we set c1 to 0: when the DEC instruction is first executed,
+the register &quot;underflows&quot; and reaches 255. As this does not set the Z flag in
+the status register SREG, the loop further executes normal. In that case the loop executes
+256 times until the decreased register reaches zero again. So the maximum delay with
+an 8 bit register is 256 * 3 = 768 clock cycles.
+
+<h2>Clock frequency of the AVR</h2>
+The duration for each clock cycle is 1 divided by the clock frequency of the AVR.
+At 1 MHz that is 1 / 1,000,000 = 0.000,001&nbsp;seconds or 1 &micro;s.
+<br><br>
+It isn't that simple to find out at which clock frequency the AVR works as there
+are many opportunities to manipulate that:
+<ol>
+  <li>As shipped: with the internal RC oscillator:
+    <ul>
+      <li>without the CLKDIV8 fuse set: 8 MHz (ATtiny13: 9.6 MHz),</li>
+      <li>default: with the CLKDIV8 fuse set: internal RC oscillator divided by 8,</li>
+      <li>the frequency of the internal RC oscillator can be modified in certain
+        limits by writing values to the OSCCAL port by overwriting the default
+        content in this port,</li>        
+      </ul>
+    </li>
+  <li>Modified clock sources, selected by fuse settings:
+    <ul>
+      <li>another internal RC oscillator (e.g. 128 kHz in an ATtiny13), or</li>
+      <li>an external clock (RC oscillator, a crystal oscillator) supplied to
+        the CLOCK1/XTAL1 input pin, or</li>
+      <li>an external crystal or resonator on XTAL1 and XTAL2, oscillated with
+        an internal inverter stage.</li>
+      </ul>
+    </li>
+  <li>The external or internal oscillator signal can be divided by
+    <ul>
+      <li>8 by setting the CLKDIV8 fuse, or</li>
+      <li>by 1, 2, 4, 8, 16, 32, 64 or 128 by writing to the CLKPR port, either
+        on startup only or on the fly at any time by the software.</li>
+      </ul>
+    </li>
+  </ol>
+If unmodified you'll find the default clock in the data book in the chapter
+&quot;System Clock and Clock Options&quot; resp. in the sub-chapter
+&quot;Default Clock Source&quot;.
+
+<h2>Time delay</h2>
+With the number of clock cycles n<sub>cycles</sub> and the the clock frequency
+the time delay by the 8 bit loop is<br>
+<center>t<sub>delay</sub>[seconds] = n<sub>cycles</sub> / f<sub>clock</sub>[Hz]</center><br>
+So, with an ATtiny13 and its default settings (f<sub>clock</sub> = 1.2 MHz) the
+range of time delays is between 3*1/1,200,000 (= 2.5&micro;s) and 3*256/1,200,000
+(= 640&micro;s). If you have set CLKPR to a divide by a higher rate (e.g. 128
+instead of the default 8) the delays are by a factor of 128 / 8 = 16-fold longer,
+roughly 10ms max.
+
+<h2>Extending delay</h2>
+With the following formulation some further delay can be reached:
+<pre>
+<code>
+.equ c1 = 200 ; 0 cycles, solely executed by the assembler
+	ldi R16,c1 ; 1 cycle
+Loop: ; Loop start
+	nop ; do nothing, 1 cycle
+	nop ; do nothing, 1 cycle
+	nop ; do nothing, 1 cycle
+	nop ; do nothing, 1 cycle
+	nop ; do nothing, 1 cycle
+	dec R16 ; 1 cycle
+	brne Loop ; 2 cycles if not zero, 1 cycle when zero
+</pre>
+</code>
+Now each loop cycle (except for the last one) needs eight clock cycles and the formula
+changes to<br>
+<center>n<sub>cycles</sub> = 1 + 8 * (c1 - 1) + 7 = 8 * c1</center><br>
+This prolongs the delay by a factor of 8 / 3 = 2.667. But still not enough delay for
+blinking, but enough for a tone generation program.
+
+<h2>The tone generator program</h2>
+<img src="speaker.gif" width="210" height="156" align="LEFT" alt="Speaker on port pin PB0">
+With our c1 of 200, we can produce a tone of 586&nbsp;Hz in an attached speaker. To avoid
+too high DC currents, we use an electrolytical capacitor in between. If you assemble the
+following source code and burn its hex into an ATtiny13's flash memory, you'll get that
+tone.
+<br clear="ALL">
+<pre>
+<code>
+.nolist ; Switch listing off
+.include "tn13def.inc" ; assembles for an ATtiny13
+.list
+.equ c1 = 0 ; Defines the tone height (factually is 256!)
+	sbi DDRB,0 ; Port bit as output
+Loop:
+	sbi PORTB,0 ; Port bit output to high
+	ldi R16,c1 ; Load constant
+Loop1:
+	nop
+	nop
+	nop
+	nop
+	nop
+	dec R16
+	brne Loop1
+	cbi PORTB,0 ; Portbit to low
+	ldi R16,c1
+Loop2:
+	nop
+	nop
+	nop
+	nop
+	nop
+	dec R16
+	brne Loop2
+	rjmp Loop
+</pre>
+</code>
+<img src="tone_tn13.png" width="590" height="456" align="RIGHT" alt="Tone generation with an ATtiny13">
+That is the program in the simulator
+<a href="http://www.avr-asm-tutorial.net/avr_sim/index_en.html">avr_sim</a>. It produces a
+nice rectangle with 50% pulse width and a frequency of 292.54&nbsp;Hz. As we delay by 256
+loop cycles, this is the lowest we can get.
+<br><br>
+For those who need to generate other frequencies, here is the formula. The number of cycles
+here is the sum from
+<ol>
+  <li>two cycles for the SBI,</li>
+  <li>the first loop with 8 * c1 cycles,</li>
+  <li>two cycles for the CBI,</li>
+  <li>the second loop with 8 * c1 cycles,</li>
+  <li>two cycles for the RJMP.</li>
+  </ol>
+And<br>
+<center>n<sub>cycles</sub> = 2 + 8 * c1 + 2 + 8 * c1 + 2 = 16 * c1 + 6 = 4,102</center><br>
+The time delay of the whole loop is<br>
+<center>t<sub>loop</sub> = 4,102 / 1,200,000 = 3.4183 ms</center><br>
+And for the frequency,<br>
+<center>f<sub>tone</sub> = 1,000 / 3.4183 = 292.54 Hz</center><br>
+Exactly as simulated.
+<br clear="ALL"><br>
+If you need c1 for a certain frequency the formula is:<br>
+<center>t<sub>loop</sub> [seconds] = 1 / f<sub>tone</sub>[Hz]<br>
+t<sub>loop</sub>[seconds] = n<sub>cycles</sub> / f<sub>clock</sub>[Hz]<br>
+n<sub>cycles</sub> = t<sub>loop</sub>[seconds] * f<sub>clock</sub>[Hz]<br>
+n<sub>cycles</sub> = 16 * c1 + 6<br>
+c1 = (n<sub>cycles</sub> - 6) / 16<br>
+c1 = (t<sub>loop</sub>[seconds] * f<sub>clock</sub>[Hz] - 6) / 16<br>
+c1 = (1 / f<sub>tone</sub>[Hz] * f<sub>clock</sub>[Hz] - 6) / 16<br>
+c1 = (f<sub>clock</sub> / f<sub>tone</sub> - 6) / 16</center><br>
+So, if you need 440&nbsp;Hz (chamber tone A), you'll have to set c1 to
+170. If you need 2&nbsp;kHz, set it to 37 (produces exactly 2006.7&nbsp;Hz).
+<br><br>
+If you need higher frequency of more accuracy, either
+<ul>
+  <li>remove the NOPs from the loop,</li>
+  <li>clear the CLKDIV8 fuse, and/or</li>
+  <li>write a smaller clock divider value to CLKPR, and/or</li>
+  <li>use a higher clock frequency.</li>
+  </ul>
+<br><br> 
+If you need lower frequencies than 294&nbsp;Hz: either
+<ul>
+  <li>increase the number of NOPs inserted, and/or</li>
+  <li>increase the clock divider rate in CLKPR, and/or</li>
+  <li>use a lower frequency RC oscillator internally, and/or</li>
+  <li>supply a lower external clock.</li>
+  </ul>
+You see: lots of options to tailor those to your needs.
+<br><br>
+Remember: this is exact as long as the controller does nothing else than
+counting loops (and as exact its clock frequency is). But: it is by far
+more exact if programmed in assembler (because the controller does nothing
+else and is fully under your complete control) than in any other language
+or control structure.
+
+<br><br>
+<a href="#top">To the top of that page</a>
+<br><br>
+<small>
+&copy;2009-2019 by <a href="http://www.avr-asm-tutorial.net/">http://www.avr-asm-tutorial.net</a>
+</small>
+</body>
+</html>

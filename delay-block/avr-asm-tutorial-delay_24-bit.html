@@ -1,0 +1,140 @@
+<html>
+<head>
+<title>Delay loops in AVR assembler</title>
+<meta name="GENERATOR" content="Editor Windows">
+<meta name="AUTHOR" content="Gerhard Schmidt">
+<meta name="CREATED" content="20080524;16361234">
+<meta name="CHANGEDBY" content="Gerhard Schmidt">
+<meta name="CHANGED" content="20190724;12191234">
+<meta name="KEYWORDS" content="AVR,Assembler,Tutorial,Timing,Loops,Delay,LED,Blinking,Programming">
+<meta name="DESCRIPTION" content="Programming for starters, introduction to AVR assembler, time delay loops, LED blinking">
+</head>
+<body bgcolor="#f0fff0">
+<font size=2><a name="top">Path:</a>
+<a href="../../index.html" target="_top">Home</a> =&gt;
+<a href="../index.html">AVR overview</a> =&gt;
+<a href="index.html">Time loops</a> =&gt; with a 24 bit triple register
+<img src="../../common/avr_150.jpeg" width="150" height="150" align="RIGHT" alt="Logo"></font>
+<BR>
+
+<img src="avr-asm-tutorial-delay_delayIconSmall.gif" alt="Timing loop" align="left" height="175" width="83">
+
+<h1>Time loops with 24 (and more) bit registers in AVR assembler</h1>
+With the knowledge of the 8 and 24 bit timing loop construction we now can add even
+more registers to our loop to cover even longer times.
+<br><br>
+
+<h2>Source code of a 24 bit time delay loop</h2>
+A timing loop with 24 bits goes as follows:
+<pre>
+<code>
+; Registers
+.def rCnt1 = R1
+.def rCnt2 = R2
+.def rCnt3 = R3
+.def rCmp1 = R4
+.def rCmp2 = R5
+.def rCmp3 = R6
+;
+.equ c1 = 65536 ; The delay constant
+;
+Main:
+Delay24:
+  ldi R16,BYTE3(c1) ; Load byte 3 of c1
+  mov rCmp3,R16 ; to R3
+  ldi R16,BYTE2(c1) ; Load byte 2 of c1
+  mov rCmp2,R16 ; to R2
+  ldi R16,BYTE1(c1) ; Load byte 1 of c1
+  mov rCmp1,R16 ; to R1
+  clr rCnt3
+  clr rCnt2
+  clr rCnt1
+LoopM1: ; 10 clock cycles
+  nop ; +1=11
+  nop ; +1=12
+LoopM2: ; 12 clock cycles
+  nop ; +1=13
+  nop ; +1=14
+Loop: ; 14 clock cycles
+  cp rCnt1,rCmp1 ; Start cycle counter, 1
+  brne Loop1 ; +1/2=2/3
+  cp rCnt2,rCmp2 ; +1=3
+  brne Loop2 ; +1/2=4/5
+  cp rCnt3,rCmp3 ; +1=5
+  brne Loop3 ; +1/2=6/7
+  rjmp LoopEnd ; +2=8
+Loop1: ; 3 clock cycles
+  nop ; +1=4
+  nop ; +1=5
+Loop2: ; 5 clock cycles
+  nop ; +1=6
+  nop ; +1=7
+Loop3: ; 7 clock cycles
+  inc rCnt1 ; Count the lowest byte down, +1=8
+  brne LoopM1 ; +1/2=9/10
+  inc rCnt2 ; +1=10
+  brne LoopM2 ; +1/2=11/12
+  inc rCnt3 ; +1=12
+  rjmp Loop ; +2=14
+LoopEnd:
+  ; End of loop, execute further
+</code>
+</pre>
+The following is different from the previous 8- and 16-bit sources:
+<ul>
+  <li>The counter value is in three ordinary registers, below R16. This was decided
+    to protect more valuable registers (such as 16-bit pointer registers or R25:R24)
+    or registers from R16 upwards from this use.</li>
+  <li>The counter counts up, not down. That is because when counting down no flag is
+    available that detects an &quot;underflow&quot; (when the byte rolls from zero
+    to 255).</li>
+  <li>The compare value, where the counter has reached its end, is in three additional
+    registers, so lots of LDI instructions are unnecessary, simplifying the code and
+    increasing its understandability.</li>
+  <li>Consider the counter value is below 256 from the early beginning. The counting
+    would have to end if the two upper bytes are already at zero. That would require
+    lots of compare work.</li>
+  <li>To avoid having to multiply the three byte values with different factors, all
+    three components cause the same number of instructions. That meant inserting NOPs
+    to adjust the execution steps to an equal number of clock cycles, no matter if
+    they are increased or not in a single count cycle. This allowed calculating the
+    number of clock cycles by multiplying c1 with a constant (the number of clock cycles
+    in each counting round) and adding a simple displacement (the number of clock
+    cycles when c1 is zero).</li>
+  </ul>    
+In this formulation each counting round takes 14 clock cycles. If c1 = 0, then 21 clock
+cycles are necessary. So, to get the number of clock cycles for a given counting constant,
+use:<br>
+<center>n<sub>clock</sub> = 14 * c1 + 21</center><br>
+To get c1 for a given number of clock cycles use:<br>
+<center>c1 = (n<sub>clock</sub> - 21) / 14</center><br>
+Or, in integer math, with rounding:<br>
+<center>c1 = (n<sub>clock</sub> - 21 + 7) / 14 = n<sub>clock</sub> / 14 - 1</center><br>
+The largest number that c1 can be is 256 * 256 * 256 - 1 = 16,777,215, resulting in
+234,881,031 clock cycles delay. That means 234 seconds or 3.9 minutes at 1&nbsp;MHz
+clock.
+<br><br>
+You need even longer times, hours, days, monthes or years? No problem, add a few
+additional bytes to the counter and compare values, ensure that the extended compare
+section and the count section of the source code have a fixed number of clock cycles
+and you're done.
+<br><br>
+Who said that assembler is simple? Counting clock cycles even in the 234 million
+range is not that complicated, as it seems, even in a small 8-bit AVR.
+<br><br>
+And, who said that assembler is complicated? Those Arduino-C++ guys discuss for hours
+and hours how they could resolve the issue. Their discussions focus on &quot;What
+clock frequency has my Arduino?&quot; and &quot;Isn't there a library available
+that can delay execution?&quot; and &quot;What do I have to do to set up a software
+timer that waits 10&nbsp;ms?&quot;. All questions that an assembler programmer does
+not have: he tailors its own loops, and is done long before the C++ discussers end in
+their selfmade chaos.
+
+<br><br>
+<a href="#top">To the top of that page</a>
+<br><br>
+<small>
+&copy;2009-2019 by <a href="http://www.avr-asm-tutorial.net/">http://www.avr-asm-tutorial.net</a>
+</small>
+</body>
+</html>
