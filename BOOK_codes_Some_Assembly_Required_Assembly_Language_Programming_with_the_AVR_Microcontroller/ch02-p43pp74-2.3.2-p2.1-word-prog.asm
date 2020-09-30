@@ -1,0 +1,6 @@
+; Prgm 2.1
+; P43/PP74
+.dw 0xE001
+.dw 0x0F00
+.dw 0xCFFF
+
