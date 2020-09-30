@@ -1,0 +1,597 @@
+;.INCLUDE "M328PDEF.INC"
+;.INCLUDE "AVR_MACRO.INC"
+;*******************************************************************************
+; Summary
+; Implement Macros for utilize IO/SFR registers
+; * Define IOREG variable list for macro pre-process before write into IOREG
+; * Define pre-process macros to init IOREG variable
+; * Define write IOREG macros to write IOREG variable to IOREG
+;-------------------------------------------------------------------------------
+; * Config IOREG variable macros
+; * BIT SET/CLR
+;   CFG_SET_IOREGNAME_1_REGBIT ; SET @0=IOREGNAME, @1=IOREGBIT
+;   CFG_SET_IOREGNAME_N_REGBIT ; SET @0=IOREGNAME, @1=NBIT, @*=IOREGBIT[N] LIST
+; * BIT SET/CLR (mainly for Mode selct because complex operation)
+;   CFG_BSET_REGNAME_DEVN_RGRP_BITNAME_BITN ; TCCR_0_A -> WGM_[0DEVN]_0
+;            @0      @1   @2   @3      @4
+;   CFG_BCLR_REGNAME_DEVN_RGRP_BITNAME_BITN ; TCCR_0_A -> WGM_[0DEVN]_0
+;            @0      @1   @2   @3      @4
+;   CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01; TCCR_0_A -> WGM_[0DEVN]_0
+;           @0      @1   @2   @3      @4   @5
+;   CFG_BSET_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN ;TCCR_0_A -> COM_[0DEVN]_A_0
+;           @0      @1   @2   @3      @4   @5
+;   CFG_BCLR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN ;TCCR_0_A -> COM_[0DEVN]_A_0
+;            @0      @1   @2   @3      @4   @5
+;   CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01;TCCR_0_A->COM_[0]_A_0 0/1 
+;           @0      @1   @2   @3      @4   @5   @6
+; * Mode select to config IOREG var, etc. Timer/Counter WGM/CS/COMA/B mode
+;   CFG_SET_TCN_CTLRNAME_MODN ; _0_WGM/CS/COMA/COMB_[0,15]
+;           @0  @1       @
+; * Write IOREG from variable macros
+;   CFG_WR_IOREGNAME_TRH  ; write cfg to @0=IOREGNAME with @1=TMP_GPRH
+;*******************************************************************************
+; IOREG variable value Definition
+;-------------------------------------------------------------------------------
+.SET  V_UDR0   = 0  ; UDR0   = 0xc6 ; MEMORY MAPPED
+.SET  V_UBRR0L = 0  ; UBRR0L = 0xc4 ; MEMORY MAPPED
+.SET  V_UBRR0H = 0  ; UBRR0H = 0xc5 ; MEMORY MAPPED
+.SET  V_UCSR0C = 0  ; UCSR0C = 0xc2 ; MEMORY MAPPED
+.SET  V_UCSR0B = 0  ; UCSR0B = 0xc1 ; MEMORY MAPPED
+.SET  V_UCSR0A = 0  ; UCSR0A = 0xc0 ; MEMORY MAPPED
+.SET  V_TWAMR  = 0  ; TWAMR  = 0xbd ; MEMORY MAPPED
+.SET  V_TWCR   = 0  ; TWCR   = 0xbc ; MEMORY MAPPED
+.SET  V_TWDR   = 0  ; TWDR   = 0xbb ; MEMORY MAPPED
+.SET  V_TWAR   = 0  ; TWAR   = 0xba ; MEMORY MAPPED
+.SET  V_TWSR   = 0  ; TWSR   = 0xb9 ; MEMORY MAPPED
+.SET  V_TWBR   = 0  ; TWBR   = 0xb8 ; MEMORY MAPPED
+.SET  V_ASSR   = 0  ; ASSR   = 0xb6 ; MEMORY MAPPED
+.SET  V_OCR2B  = 0  ; OCR2B  = 0xb4 ; MEMORY MAPPED
+.SET  V_OCR2A  = 0  ; OCR2A  = 0xb3 ; MEMORY MAPPED
+.SET  V_TCNT2  = 0  ; TCNT2  = 0xb2 ; MEMORY MAPPED
+.SET  V_TCCR2B = 0  ; TCCR2B = 0xb1 ; MEMORY MAPPED
+.SET  V_TCCR2A = 0  ; TCCR2A = 0xb0 ; MEMORY MAPPED
+.SET  V_OCR1BL = 0  ; OCR1BL = 0x8a ; MEMORY MAPPED
+.SET  V_OCR1BH = 0  ; OCR1BH = 0x8b ; MEMORY MAPPED
+.SET  V_OCR1AL = 0  ; OCR1AL = 0x88 ; MEMORY MAPPED
+.SET  V_OCR1AH = 0  ; OCR1AH = 0x89 ; MEMORY MAPPED
+.SET  V_ICR1L  = 0  ; ICR1L  = 0x86 ; MEMORY MAPPED
+.SET  V_ICR1H  = 0  ; ICR1H  = 0x87 ; MEMORY MAPPED
+.SET  V_TCNT1L = 0  ; TCNT1L = 0x84 ; MEMORY MAPPED
+.SET  V_TCNT1H = 0  ; TCNT1H = 0x85 ; MEMORY MAPPED
+.SET  V_TCCR1C = 0  ; TCCR1C = 0x82 ; MEMORY MAPPED
+.SET  V_TCCR1B = 0  ; TCCR1B = 0x81 ; MEMORY MAPPED
+.SET  V_TCCR1A = 0  ; TCCR1A = 0x80 ; MEMORY MAPPED
+.SET  V_DIDR1  = 0  ; DIDR1  = 0x7f ; MEMORY MAPPED
+.SET  V_DIDR0  = 0  ; DIDR0  = 0x7e ; MEMORY MAPPED
+.SET  V_ADMUX  = 0  ; ADMUX  = 0x7c ; MEMORY MAPPED
+.SET  V_ADCSRB = 0  ; ADCSRB = 0x7b ; MEMORY MAPPED
+.SET  V_ADCSRA = 0  ; ADCSRA = 0x7a ; MEMORY MAPPED
+.SET  V_ADCH   = 0  ; ADCH   = 0x79 ; MEMORY MAPPED
+.SET  V_ADCL   = 0  ; ADCL   = 0x78 ; MEMORY MAPPED
+.SET  V_TIMSK2 = 0  ; TIMSK2 = 0x70 ; MEMORY MAPPED
+.SET  V_TIMSK1 = 0  ; TIMSK1 = 0x6f ; MEMORY MAPPED
+.SET  V_TIMSK0 = 0  ; TIMSK0 = 0x6e ; MEMORY MAPPED
+.SET  V_PCMSK1 = 0  ; PCMSK1 = 0x6c ; MEMORY MAPPED
+.SET  V_PCMSK2 = 0  ; PCMSK2 = 0x6d ; MEMORY MAPPED
+.SET  V_PCMSK0 = 0  ; PCMSK0 = 0x6b ; MEMORY MAPPED
+.SET  V_EICRA  = 0  ; EICRA  = 0x69 ; MEMORY MAPPED
+.SET  V_PCICR  = 0  ; PCICR  = 0x68 ; MEMORY MAPPED
+.SET  V_OSCCAL = 0  ; OSCCAL = 0x66 ; MEMORY MAPPED
+.SET  V_PRR    = 0  ; PRR    = 0x64 ; MEMORY MAPPED
+.SET  V_CLKPR  = 0  ; CLKPR  = 0x61 ; MEMORY MAPPED
+.SET  V_WDTCSR = 0  ; WDTCSR = 0x60 ; MEMORY MAPPED
+.SET  V_SREG   = 0  ; SREG   = 0x3f + 0x20
+.SET  V_SPL    = 0  ; SPL    = 0x3d + 0x20
+.SET  V_SPH    = 0  ; SPH    = 0x3e + 0x20
+.SET  V_SPMCSR = 0  ; SPMCSR = 0x37 + 0x20
+.SET  V_MCUCR  = 0  ; MCUCR  = 0x35 + 0x20
+.SET  V_MCUSR  = 0  ; MCUSR  = 0x34 + 0x20
+.SET  V_SMCR   = 0  ; SMCR   = 0x33 + 0x20
+.SET  V_ACSR   = 0  ; ACSR   = 0x30 + 0x20
+.SET  V_SPDR   = 0  ; SPDR   = 0x2e + 0x20
+.SET  V_SPSR   = 0  ; SPSR   = 0x2d + 0x20
+.SET  V_SPCR   = 0  ; SPCR   = 0x2c + 0x20
+.SET  V_GPIOR2 = 0  ; GPIOR2 = 0x2b + 0x20
+.SET  V_GPIOR1 = 0  ; GPIOR1 = 0x2a + 0x20
+.SET  V_OCR0B  = 0  ; OCR0B  = 0x28 + 0x20
+.SET  V_OCR0A  = 0  ; OCR0A  = 0x27 + 0x20
+.SET  V_TCNT0  = 0  ; TCNT0  = 0x26 + 0x20
+.SET  V_TCCR0B = 0  ; TCCR0B = 0x25 + 0x20
+.SET  V_TCCR0A = 0  ; TCCR0A = 0x24 + 0x20
+.SET  V_GTCCR  = 0  ; GTCCR  = 0x23 + 0x20
+.SET  V_EEARH  = 0  ; EEARH  = 0x22 + 0x20
+.SET  V_EEARL  = 0  ; EEARL  = 0x21 + 0x20
+.SET  V_EEDR   = 0  ; EEDR   = 0x20 + 0x20
+.SET  V_EECR   = 0  ; EECR   = 0x1f + 0x20
+.SET  V_GPIOR0 = 0  ; GPIOR0 = 0x1e + 0x20
+.SET  V_EIMSK  = 0  ; EIMSK  = 0x1d + 0x20
+.SET  V_EIFR   = 0  ; EIFR   = 0x1c + 0x20
+.SET  V_PCIFR  = 0  ; PCIFR  = 0x1b + 0x20
+.SET  V_TIFR2  = 0  ; TIFR2  = 0x17 + 0x20
+.SET  V_TIFR1  = 0  ; TIFR1  = 0x16 + 0x20
+.SET  V_TIFR0  = 0  ; TIFR0  = 0x15 + 0x20
+.SET  V_PORTD  = 0  ; PORTD  = 0x0b + 0x20
+.SET  V_DDRD   = 0  ; DDRD   = 0x0a + 0x20
+.SET  V_PIND   = 0  ; PIND   = 0x09 + 0x20
+.SET  V_PORTC  = 0  ; PORTC  = 0x08 + 0x20
+.SET  V_DDRC   = 0  ; DDRC   = 0x07 + 0x20
+.SET  V_PINC   = 0  ; PINC   = 0x06 + 0x20
+.SET  V_PORTB  = 0  ; PORTB  = 0x05 + 0x20
+.SET  V_DDRB   = 0  ; DDRB   = 0x04 + 0x20
+.SET  V_PINB   = 0  ; PINB   = 0x03 + 0x20
+;*******************************************************************************
+.MACRO CFG_SET_IOREGNAME_1_REGBIT ; Config/SET @0=IOREGNAME, @1=IOREGBIT
+  ; hardcode way ;.SET V_TCCR0B=
+  ; V_TCCR0B|(1<<@1)|(1<<@2)|(1<<@3)|(1<<@4)|(1<<@5)|(1<<@6)|(1<<@7)|(1<<@8)
+  ; TC0 ----------------------------------------
+  .IF   @0==TCCR0A
+    .SET V_TCCR0A = V_TCCR0A | (1<<@1)
+  .ELIF @0==TCCR0B
+    .SET V_TCCR0B = V_TCCR0B | (1<<@1)
+  .ELIF @0==TCNT0
+    .SET V_TCNT0  = V_TCNT0  | (1<<@1)
+  .ELIF @0==OCR0A
+    .SET V_OCR0A  = V_OCR0A  | (1<<@1)
+  .ELIF @0==OCR0B
+    .SET V_OCR0B  = V_OCR0B  | (1<<@1)
+  .ELIF @0==TIMSK0
+    .SET V_TIMSK0 = V_TIMSK0 | (1<<@1)
+  .ELIF @0==TIFR0
+    .SET V_TIFR0  = V_TIFR0  | (1<<@1)
+  ; TC1 ----------------------------------------
+  .ELIF @0==TCCR1A
+    .SET V_TCCR1A = V_TCCR1A | (1<<@1)
+  .ELIF @0==TCCR1B
+    .SET V_TCCR1B = V_TCCR1B | (1<<@1)
+  .ELIF @0==TCCR1C
+    .SET V_TCCR1C = V_TCCR1C | (1<<@1)
+  .ELIF @0==TCNT1H
+    .SET V_TCNT1H = V_TCNT1H | (1<<@1)
+  .ELIF @0==TCNT1L
+    .SET V_TCNT1L = V_TCNT1L | (1<<@1)
+  .ELIF @0==OCR1AH
+    .SET V_OCR1AH = V_OCR1AH | (1<<@1)
+  .ELIF @0==OCR1AL
+    .SET V_OCR1AL = V_OCR1AL | (1<<@1)
+  .ELIF @0==OCR1BH
+    .SET V_OCR1BH = V_OCR1BH | (1<<@1)
+  .ELIF @0==OCR1BL
+    .SET V_OCR1BL = V_OCR1BL| (1<<@1)
+  .ELIF @0==TIMSK1
+    .SET V_TIMSK1 = V_TIMSK1 | (1<<@1)
+  .ELIF @0==TIFR1
+    .SET V_TIFR1 = V_TIFR1 | (1<<@1)
+  ; TC2 ----------------------------------------
+  .ELIF @0==TCCR2A
+    .SET  V_TCCR2A = V_TCCR2A | (1<<@1)
+  .ELIF @0==TCCR2B
+    .SET  V_TCCR2B = V_TCCR2B | (1<<@1)
+  .ELIF @0==TCNT2
+    .SET  V_TCNT2  = V_TCNT2  | (1<<@1)
+  .ELIF @0==OCR2A
+    .SET  V_OCR2A  = V_OCR2A  | (1<<@1)
+  .ELIF @0==OCR2B
+    .SET  V_OCR2B  = V_OCR2B  | (1<<@1)
+  .ELIF @0==TIMSK2
+    .SET  V_TIMSK2 = V_TIMSK2 | (1<<@1)
+  .ELIF @0==TIFR2
+    .SET  V_TIFR2  = V_TIFR2  | (1<<@1)
+  ;  ----------------------------------------
+  ;.ELIF @0==
+  ;  .SET V_ = V_ | (1<<@1)
+  .ELIF @0>IOEND
+    .message "ERROR: IOREGNAME/ADR not avaliable" 
+  .ELSE
+    .message "ERROR: IOREGNAME/ADR not avaliable" 
+  .ENDIF
+.ENDMACRO
+.MACRO CFG_SET_IOREGNAME_N_REGBIT   ; @0=IOREGNAME, @1=NBIT, @*=IOREGBIT[N] LIST
+  .IF   @1==1 ; 1 bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+  .ELIF @1==2 ; 2 bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+  .ELIF @1==3 ;  bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+    CFG_SET_IOREGNAME_1_REGBIT @0, @4
+  .ELIF @1==4 ;  bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+    CFG_SET_IOREGNAME_1_REGBIT @0, @4
+    CFG_SET_IOREGNAME_1_REGBIT @0, @5
+  .ELIF @1==5 ;  bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+    CFG_SET_IOREGNAME_1_REGBIT @0, @4
+    CFG_SET_IOREGNAME_1_REGBIT @0, @5
+    CFG_SET_IOREGNAME_1_REGBIT @0, @6
+  .ELIF @1==6 ;  bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+    CFG_SET_IOREGNAME_1_REGBIT @0, @4
+    CFG_SET_IOREGNAME_1_REGBIT @0, @5
+    CFG_SET_IOREGNAME_1_REGBIT @0, @6
+    CFG_SET_IOREGNAME_1_REGBIT @0, @7
+  .ELIF @1==7 ;  bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+    CFG_SET_IOREGNAME_1_REGBIT @0, @4
+    CFG_SET_IOREGNAME_1_REGBIT @0, @5
+    CFG_SET_IOREGNAME_1_REGBIT @0, @6
+    CFG_SET_IOREGNAME_1_REGBIT @0, @7
+    CFG_SET_IOREGNAME_1_REGBIT @0, @8
+  .ELIF @1==8 ;  bit
+    CFG_SET_IOREGNAME_1_REGBIT @0, @2
+    CFG_SET_IOREGNAME_1_REGBIT @0, @3
+    CFG_SET_IOREGNAME_1_REGBIT @0, @4
+    CFG_SET_IOREGNAME_1_REGBIT @0, @5
+    CFG_SET_IOREGNAME_1_REGBIT @0, @6
+    CFG_SET_IOREGNAME_1_REGBIT @0, @7
+    CFG_SET_IOREGNAME_1_REGBIT @0, @8
+    CFG_SET_IOREGNAME_1_REGBIT @0, @9
+  .ELSE
+    .message "ERROR: REGBIT >8" 
+  .ENDIF
+.ENDMACRO
+;*******************************************************************************
+.MACRO CFG_WR_IOREGNAME_TRH  ; set/write @0=IOREGNAME with @1=TMP_GPRH
+    ;LDI   R16,  V_TCCR0A
+    RAMWRAIR @0,V_@0,@1
+.ENDMACRO
+;*******************************************************************************
+.MACRO CFG_BSET_REGNAME_DEVN_RGRP_BITNAME_BITN ; TCCR_0_A -> WGM_[0DEVN]_0
+      ;         @0      @1   @2   @3      @4
+        .SET V_@0@1@2 = V_@0@1@2 | (1 << @3@1@4)
+.ENDMACRO
+.MACRO CFG_BCLR_REGNAME_DEVN_RGRP_BITNAME_BITN ; TCCR_0_A -> WGM_[0DEVN]_0
+      ;         @0      @1   @2   @3      @4
+        .SET V_@0@1@2 = V_@0@1@2 & ~(1 << @3@1@4)
+.ENDMACRO
+.MACRO CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01; TCCR_0_A -> WGM_[0DEVN]_0
+      ;        @0      @1   @2   @3      @4   @5
+  .IF   @5==0
+    CFG_BCLR_REGNAME_DEVN_RGRP_BITNAME_BITN @0,@1,@2,@3,@4
+  .ELIF @5==1
+    CFG_BSET_REGNAME_DEVN_RGRP_BITNAME_BITN @0,@1,@2,@3,@4
+  .ELSE
+    .message "ERR:"
+  .ENDIF
+.ENDMACRO
+.MACRO CFG_BSET_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN ;TCCR_0_A -> COM_[0DEVN]_A_0
+      ;         @0      @1   @2   @3      @4   @5
+        .SET V_@0@1@2 = V_@0@1@2 | (1 << @3@1@4@5)
+.ENDMACRO
+.MACRO CFG_BCLR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN ;TCCR_0_A -> COM_[0DEVN]_A_0
+      ;         @0      @1   @2   @3      @4   @5
+        .SET V_@0@1@2 = V_@0@1@2 & ~(1 << @3@1@4@5)
+.ENDMACRO
+.MACRO CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01;TCCR_0_A->COM_[0]_A_0 0/1
+      ;        @0      @1   @2   @3      @4   @5   @6
+  .IF   @6==0
+    CFG_BCLR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN @0,@1,@2,@3,@4,@5
+  .ELIF @6==1
+    CFG_BSET_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN @0,@1,@2,@3,@4,@5
+  .ELSE
+    .message "ERR:"
+  .ENDIF
+.ENDMACRO
+;*******************************************************************************
+.MACRO CFG_SET_TCN_CTLRNAME_MODN ; _0_WGM/CS/COMA/COMB_[0,15]
+       ;       @0  @1       @2
+   ; CTLRNAME define
+   .SET WGM  = 0
+   .SET CS   = 1
+   .SET COMA = 2
+   .SET COMB = 3
+  .IF   @1==0  ; select @1=CTLR_NAME=WGM
+    .IF   @2==0 ; @2=MOD-0000
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==1 ; MOD-0001 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==2 ; MOD-0010 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==3 ; MOD-0011 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==4 ; MOD-0100 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==5 ; MOD-0101 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==6 ; MOD-0110 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==7 ; MOD-0111 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,0  ; b3
+        .ENDIF
+    .ELIF @2==8 ; MOD-1000 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==9 ; MOD-1001 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==10 ; MOD-1010 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==11 ; MOD-1011 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==12; MOD-1100 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==13 ; MOD-1101 
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==14 ; MOD-1110
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELIF @2==15 ; MOD-1111
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,A,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+        .IF @0==1 ; if TC1, set/clr WGM13
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,3,1  ; b3
+        .ENDIF
+    .ELSE
+        .message "ERROR"
+    .ENDIF
+  .ELIF @1==1  ; select @1=CTLR_NAME=CS
+    .IF   @2==0 ; @2=MOD-000-stop
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+    .ELIF @2==1 ; @2=MOD-001
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+    .ELIF @2==2 ; @2=MOD-010
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+    .ELIF @2==3 ; @2=MOD-011
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,0  ; b2
+    .ELIF @2==4 ; @2=MOD-100
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+    .ELIF @2==5 ; @2=MOD-101
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,0  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+    .ELIF @2==6 ; @2=MOD-110
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+    .ELIF @2==7 ; @2=MOD-111
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,1,1  ; b1
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BITN_01 TCCR,@0,B,@1,2,1  ; b2
+    .ELSE
+      .message "ERROR"
+    .ENDIF
+  .ELIF @1==2  ; select @1=CTLR_NAME=COMnA
+    .IF   @2==0 ; @2=MOD-00
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,1,0  ; b1
+    .ELIF @2==1 ; @2=MOD-01
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,1,0  ; b1
+    .ELIF @2==2 ; @2=MOD-10
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,1,1  ; b1
+    .ELIF @2==3 ; @2=MOD-11
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,A,1,1  ; b1
+    .ELSE
+      .message "ERROR"
+    .ENDIF
+  .ELIF @1==3  ; select @1=CTLR_NAME=COMnB
+    .IF   @2==0 ; @2=MOD-00
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,1,0  ; b1
+    .ELIF @2==1 ; @2=MOD-01
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,1,0  ; b1
+    .ELIF @2==2 ; @2=MOD-10
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,0,0  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,1,1  ; b1
+    .ELIF @2==3 ; @2=MOD-11
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,0,1  ; b0
+      CFG_BWR_REGNAME_DEVN_RGRP_BITNAME_BGRP_BITN_01 TCCR,@0,A,COM,B,1,1  ; b1
+    .ELSE
+      .message "ERROR"
+    .ENDIF
+  .ELSE
+    .message "ERROR"
+  .ENDIF
+.ENDMACRO
+;*******************************************************************************
+.MACRO TC_STOP_TCN_SAVEADR_TRH ; @0=TCID[0,1,2], @1=SAVEADR[RAMADR], @2=TRH
+        .IF   @0==0
+          RAMCOPYAAR TCCR0B,@1,@2
+          CBR @2,0B11111000
+          OUT TCCR0B,@2
+        .ELIF @0==1
+          RAMCOPYAAR TCCR1B,@1,@2
+          CBR @2,0B11111000
+          STS TCCR0B,@2
+        .ELIF @0==2
+          RAMCOPYAAR TCCR2B,@1,@2
+          CBR @2,0B11111000
+          STS TCCR0B,@2
+        .ELSE
+          .message "ERROR"
+        .ENDIF
+.ENDMACRO
+.MACRO TC_RESUME_TCN_SAVEADR_TRH ; @0=TCID[0,1,2], @1=SAVEADR[RAMADR], @2=TRH
+        .IF   @0==0
+          RAMCOPYAAR @1,TCCR0B,@2
+        .ELIF @0==1
+          RAMCOPYAAR @1,TCCR1B,@2
+        .ELIF @0==2
+          RAMCOPYAAR @1,TCCR2B,@2
+        .ELSE
+          .message "ERROR"
+        .ENDIF
+.ENDMACRO
+;*******************************************************************************
+;.MACRO INIT_TC1
+; clear TIFR1 TOV1 OCF1A OCF1B ICF1
+; init TCNT1H = 0 TCNT1L = 0
+; init OCR1AH = $FF OCR1AL = $FF
+        ;LDI   R16,    $FF/2
+;        SER   R16             ; $FF
+;        STS   OCR1AH, R16
+;        STS   OCR1AL, R16
+;        LDI   R16,    $FF/2
+;        STS   OCR1BH, R16
+;        STS   OCR1BL, R16
+; set IRQ TIMSK1 TOIE1 OCIE1A ICIE1 SREG-I
+;        LDI   R16, (1<<OCIE1A)|(1<<ICIE1)
+;        STS   TIMSK1, R16
+; init WGM as CTC mode 4 (0100) (TOP=OCR1A MAX=$FFFF), TCCR1A WGM11:WGM10 = 00
+        ;LDI   R16, (0<<WGM11)|(0<<WGM10)
+        ;STS   TCCR1A, R16
+; init COM as no compare out mode, TCCR1A COM1A1:COM1A0 = 00
+        ;LDI   R16, (0<<COM1A1)|(0<<COM1A0)
+        ;STS   TCCR1A, R16
+; init WGM13:12 as CTC mode, TCCR1B WGM13:WGM12 = 01
+        ;LDI   R16, (0<<WGM13)|(1<<WGM12)
+        ;STS   TCCR1B, R16
+; init ICNC1 = 1 (0=Disable, 1=enable) ICES1 = 1 (0=falling, 1=rising)
+        ;LDI   R16, (1<<ICNC1)|(1<<ICES1)
+        ;STS   TCCR1B, R16
+; init clock select as no prescaling, TCCR1B CS12:11:10 = 001, start timer
+;LDI R16, (0<<WGM13)|(1<<WGM12)|(1<<ICNC1)|(1<<ICES1)|(0<<CS12)|(0<<CS11)|(1<<CS10)
+;        STS   TCCR1B, R16
+;.ENDMACRO 
+
+;*******************************************************************************
+; .MACRO CFG_SEL_TN_WGMN   ; Config TC WGM Value @0=TCN @1=MODN
+;   .IF @0==0     ; CFG WGM value
+;     .IF   @1==0 ; WGM-000-Normal
+;       .SET V_TCCR0A = V_TCCR0A & ~(1<<WGM01) & ~(1<<WGM00)
+;       .SET V_TCCR0B = V_TCCR0B & ~(1<<WGM02)
+;     .ELIF @1==1 ; WGM-001-PWM-$FF
+;       .SET V_TCCR0A = V_TCCR0A & ~(1<<WGM01) | (1<<WGM00)
+;       .SET V_TCCR0B = V_TCCR0B & ~(1<<WGM02)
+;     .ELIF @1==2 ; WGM-010-CTC-OCR0A
+;       .SET V_TCCR0A = V_TCCR0A | (1<<WGM01) & ~(1<<WGM00)
+;       .SET V_TCCR0B = V_TCCR0B & ~(1<<WGM02)
+;     .ELIF @1==3 ; WGM-011-FPWM-$FF
+;       .SET V_TCCR0A = V_TCCR0A | (1<<WGM01) | (1<<WGM00)
+;       .SET V_TCCR0B = V_TCCR0B & ~(1<<WGM02)
+;     .ELIF @1==4 ; WGM-100-FPWM-$FF
+;       .message "ERROR: Time/Counter 0 WGM Mode 4 N/A"
+;     .ELIF @1==5 ; WGM-101-PWM-$FF
+;       .SET V_TCCR0A = V_TCCR0A & ~(1<<WGM01) | (1<<WGM00)
+;       .SET V_TCCR0B = V_TCCR0B | (1<<WGM02)
+;     .ELIF @1==6 ; WGM-110-FPWM-$FF
+;       .message "ERROR: Time/Counter 0 WGM Mode 6 N/A"
+;     .ELIF @1==7 ; WGM-111-FPWM-OCR0A
+;       .SET V_TCCR0A = V_TCCR0A | (1<<WGM01) | (1<<WGM00)
+;       .SET V_TCCR0B = V_TCCR0B | (1<<WGM02)
+;     .ELSE
+;       .message "ERROR: Time/Counter 0 WGM Mode >7 N/A"
+;     .ENDIF
+;   .ELIF @0==1 
+;   .ELIF @0==2
+;   .ELSE
+;     .message "ERROR: Time/Counter ID not valid [0,1,2]"
+;   .ENDIF
+; .ENDMACRO
+;-------------------------------------------------------------------------------
+; PASS! test CFG_SEL_TN_WGMN
+;        CFG_SEL_TN_WGMN 0,0
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,1
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,2
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,3
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,4
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,5
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,6
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+;        CFG_SEL_TN_WGMN 0,7
+;        CFG_WR_IOREGNAME_TRH TCCR0A,R16
+;        CFG_WR_IOREGNAME_TRH TCCR0B,R16
+
+;NOP

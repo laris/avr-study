@@ -1,0 +1,85 @@
+
+AVRA   Ver. 1.4.1 avr_macro.inc Tue Jan 28 23:01:36 2020
+
+
+          #ifndef __AVR_MACRO__
+          #define __ABR_MACRO__ 1
+          #endif
+         ; RAM address range = ; GPR[0,$1F] + SFR[$20,$5F] + ESFR[$60,ESFR_END/IOEND] + RAM[SRAM_START,RAMEND]
+          #define _ADDR_NULL  0
+          #define _ADDR_GPR   1
+          #define _ADDR_GPRL  2
+          #define _ADDR_GPRH  3
+          #define _ADDR_SFR   4
+          #define _ADDR_SFRL  5
+          #define _ADDR_SFRH  6
+          #define _ADDR_ESFR  7
+          #define _ADDR_SRAM  8
+          #define _ADDR_ESRAM 9
+         
+          #define _SFR_START  0x0020
+          #define _SFR_END    0x005f
+          #define _SFRL_START 0x0020
+          #define _SFRL_END   0x003f
+          #define _SFRH_START 0x0040
+          #define _SFRH_END   0x005f
+          #define _ESFR_START 0x0060
+          #define _ESFR_END   0x00ff
+          #define _IOEND      _ESFR_END
+          #define _SRAM_START 0x0100
+          #define _SRAM_SIZE  2048
+          #define _RAMEND     0x08ff
+          #define _SRAM_END   _RAMEND
+         
+          .set  __ADDR_X = _ADDR_NULL ; Range
+          .set  __ADDR_Y = _ADDR_NULL ; Detail
+          .set  __ADDR_Z = _ADDR_NULL ; Input symbol
+         
+          .MACRO  _set_addr_range ;@0=xaddr ; convert unknown address to absolute address
+                  .IF   (@0==R0 )||(@0==R1 )||(@0==R2 )||(@0==R3 )||              (@0==R4 )||(@0==R5 )||(@0==R6 )||(@0==R7 )||              (@0==R8 )||(@0==R9 )||(@0==R10)||(@0==R11)||              (@0==R12)||(@0==R13)||(@0==R14)||(@0==R15)
+                    .set  __ADDR_X = _ADDR_GPR
+                    .set  __ADDR_Y = _ADDR_GPRL
+                  .ELIF (@0==R16)||(@0==R17)||(@0==R18)||(@0==R19)||              (@0==R20)||(@0==R21)||(@0==R22)||(@0==R23)||              (@0==R24)||(@0==R25)||(@0==R26)||(@0==R27)||              (@0==R28)||(@0==R29)||(@0==R30)||(@0==R31)||              (@0==XL )||(@0==XH )||(@0==YL )||(@0==YH )||              (@0==ZL )||(@0==ZH)
+                    .set  __ADDR_X = _ADDR_GPR
+                    .set  __ADDR_Y = _ADDR_GPRH
+                  .ELIF (@0==SREG)||(@0==PORTB)   ; m328p
+                    .set  __ADDR_X = _ADDR_SFR
+                    .set  __ADDR_Y = _ADDR_SFRL
+                  .ELIF (@0==OCR2A)||(@0==OCR2B)  ; m328p
+                    .set  __ADDR_X = _ADDR_SFR
+                    .set  __ADDR_Y = _ADDR_SFRH
+                  .ELIF (@0>=_SRAM_START)&&(@0<=_SRAM_END)  ; m328p
+                    .set  __ADDR_X = _ADDR_SRAM
+                    .set  __ADDR_Y = _ADDR_SRAM
+                  .ELSE
+                    .message "ERR: Input register/address not defined"
+                  .ENDIF
+          .ENDM
+          .MACRO  _convert_abs_addr ;@0=xaddr ; convert unknown address to absolute address
+                  _get_addr_range @0
+                  .IF     __ADDR_X == _ADDR_GPR
+                    .set  __ADDR_Z =  @0
+                  .ELIF   __ADDR_X == _ADDR_SFR
+                  .ENDIF
+          .ENDM
+          .MACRO  _byte_com ; @0=xaddr, @1=reg_tmp
+                  _set_addr_range @0
+                  .IF   __ADDR_X == _ADDR_GPR
+                    COM @0
+                  .ELIF __ADDR_X == _ADDR_SFR
+                    IN  @1,@0
+                    COM @1
+                    OUT @0,@1
+                  .ELSE
+                    .message "ERR:"@0"out of range"
+                  .ENDIF
+          .ENDM
+Used memory blocks:
+
+
+Segment usage:
+   Code      :         0 words (0 bytes)
+   Data      :         0 bytes
+   EEPROM    :         0 bytes
+
+Assembly completed with no errors.
