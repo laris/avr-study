@@ -141,6 +141,7 @@
 * https://stackoverflow.com/questions/47453737/how-do-avr-assembly-brne-delay-loops-work
 
 ```
+sansan@AVRFreaks 20100119
 The macro looks like subroutine converted to macro.
 With conditional compilation macro can be smarter (avr-gcc as)
 
@@ -263,20 +264,20 @@ This macro handles delays from 1 to 262148 (1 + 65536*4 + 3)
     if n>=4 && n<=255 {
       (n/4+1)*4 +
       {
-        if n % 4 == 0 { 1 }
-        if n % 4 == 1 { 2 }
-        if n % 4 == 2 { 3 }
-        if n % 4 == 3 { 4 }
+        if n % 4 == 0 { 0+1 = 1 }
+        if n % 4 == 1 { 2+1 = 2 }
+        if n % 4 == 2 { 2+1 = 3 }
+        if n % 4 == 3 { 3+1 = 4 }
       }
     }
     else if n>=0 && n<=3
     {
       ((255+1+n)/4+1)*4 +
       {
-        if n % 4 == 0 { 1 }
-        if n % 4 == 1 { 2 }
-        if n % 4 == 2 { 3 }
-        if n % 4 == 3 { 4 }
+        if n % 4 == 0 { 0+1 = 1 }
+        if n % 4 == 1 { 2+1 = 2 }
+        if n % 4 == 2 { 2+1 = 3 }
+        if n % 4 == 3 { 3+1 = 4 }
       }
     }
     ```
